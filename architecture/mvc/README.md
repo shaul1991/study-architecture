@@ -237,45 +237,58 @@ graph LR
 ```kotlin
 // Entity
 @Entity
-@Table(name = "products")
-data class Product(
+@Table(name = "posts")
+data class Post(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 
-    @Column(nullable = false)
-    var name: String,
+    @Column(nullable = false, length = 200)
+    var title: String,
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    var content: String,
 
     @Column(nullable = false)
-    var price: BigDecimal,
+    var viewCount: Int = 0,
 
-    @Column(nullable = false)
-    var stock: Int
-)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "author_id", nullable = false)
+    var author: User
+) {
+    fun incrementViewCount() {
+        viewCount++
+    }
+}
 
 // Repository
 @Repository
-interface ProductRepository : JpaRepository<Product, Long> {
-    fun findByNameContaining(name: String): List<Product>
+interface PostRepository : JpaRepository<Post, Long> {
+    fun findByTitleContaining(title: String): List<Post>
+    fun findByAuthor(author: User): List<Post>
 }
 
 // Service
 @Service
-class ProductService(
-    private val productRepository: ProductRepository
+class PostService(
+    private val postRepository: PostRepository,
+    private val userRepository: UserRepository
 ) {
     @Transactional
-    fun createProduct(dto: CreateProductDto): Product {
-        val product = Product(
-            name = dto.name,
-            price = dto.price,
-            stock = dto.stock
+    fun createPost(authorId: Long, title: String, content: String): Post {
+        val author = userRepository.findById(authorId)
+            .orElseThrow { ResourceNotFoundException("사용자를 찾을 수 없습니다") }
+
+        val post = Post(
+            title = title,
+            content = content,
+            author = author
         )
-        return productRepository.save(product)
+        return postRepository.save(post)
     }
 
-    fun getAllProducts(): List<Product> {
-        return productRepository.findAll()
+    fun getAllPosts(): List<Post> {
+        return postRepository.findAll()
     }
 }
 ```
@@ -325,28 +338,19 @@ graph LR
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>상품 목록</title>
+    <title>게시글 목록</title>
 </head>
 <body>
-    <h1>상품 목록</h1>
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>상품명</th>
-                <th>가격</th>
-                <th>재고</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr th:each="product : ${products}">
-                <td th:text="${product.id}"></td>
-                <td th:text="${product.name}"></td>
-                <td th:text="${product.price}"></td>
-                <td th:text="${product.stock}"></td>
-            </tr>
-        </tbody>
-    </table>
+    <h1>게시글 목록</h1>
+    <div th:each="post : ${posts}" class="post-card">
+        <h2 th:text="${post.title}">게시글 제목</h2>
+        <p th:text="${post.contentPreview}">내용 미리보기</p>
+        <small>
+            작성자: <span th:text="${post.author.username}">username</span> |
+            조회수: <span th:text="${post.viewCount}">0</span> |
+            댓글: <span th:text="${post.comments.size()}">0</span>
+        </small>
+    </div>
 </body>
 </html>
 ```
@@ -354,23 +358,26 @@ graph LR
 **예시 (REST API - JSON):**
 ```kotlin
 // Response DTO
-data class ProductResponse(
+data class PostSummaryResponse(
     val id: Long,
-    val name: String,
-    val price: BigDecimal,
-    val stock: Int
+    val title: String,
+    val contentPreview: String,
+    val authorUsername: String,
+    val viewCount: Int,
+    val commentCount: Int,
+    val createdAt: LocalDateTime
 )
 
 // Controller에서 JSON 반환
 @RestController
-@RequestMapping("/api/products")
-class ProductApiController(
-    private val productService: ProductService
+@RequestMapping("/api/posts")
+class PostApiController(
+    private val postService: PostService
 ) {
     @GetMapping
-    fun getAllProducts(): List<ProductResponse> {
-        return productService.getAllProducts()
-            .map { ProductResponse(it.id!!, it.name, it.price, it.stock) }
+    fun getAllPosts(): List<PostSummaryResponse> {
+        return postService.getAllPosts()
+            .map { it.toSummaryResponse() }
     }
 }
 ```
@@ -423,34 +430,48 @@ graph LR
 **예시 (웹 MVC):**
 ```kotlin
 @Controller
-@RequestMapping("/products")
-class ProductController(
-    private val productService: ProductService
+@RequestMapping("/posts")
+class PostController(
+    private val postService: PostService,
+    private val commentService: CommentService
 ) {
     @GetMapping
-    fun listProducts(model: Model): String {
-        val products = productService.getAllProducts()
-        model.addAttribute("products", products)
-        return "products/list" // Thymeleaf 템플릿 이름
+    fun listPosts(model: Model): String {
+        val posts = postService.getAllPosts()
+        model.addAttribute("posts", posts)
+        return "posts/list" // Thymeleaf 템플릿 이름
+    }
+
+    @GetMapping("/{id}")
+    fun showPost(@PathVariable id: Long, model: Model): String {
+        val post = postService.getPostById(id)
+        val comments = commentService.getCommentsByPost(id)
+
+        postService.incrementViewCount(id) // 조회수 증가
+
+        model.addAttribute("post", post)
+        model.addAttribute("comments", comments)
+        return "posts/detail"
     }
 
     @GetMapping("/new")
-    fun newProductForm(model: Model): String {
-        model.addAttribute("product", CreateProductDto())
-        return "products/form"
+    fun newPostForm(model: Model): String {
+        model.addAttribute("post", CreatePostDto())
+        return "posts/form"
     }
 
     @PostMapping
-    fun createProduct(
-        @Valid @ModelAttribute dto: CreateProductDto,
+    fun createPost(
+        @Valid @ModelAttribute dto: CreatePostDto,
         bindingResult: BindingResult
     ): String {
         if (bindingResult.hasErrors()) {
-            return "products/form"
+            return "posts/form"
         }
 
-        productService.createProduct(dto)
-        return "redirect:/products"
+        val authorId = 1L // 실제로는 로그인한 사용자 ID
+        val post = postService.createPost(authorId, dto.title, dto.content)
+        return "redirect:/posts/${post.id}"
     }
 }
 ```
@@ -458,33 +479,32 @@ class ProductController(
 **예시 (REST API):**
 ```kotlin
 @RestController
-@RequestMapping("/api/products")
-class ProductApiController(
-    private val productService: ProductService
+@RequestMapping("/api/posts")
+class PostApiController(
+    private val postService: PostService
 ) {
     @GetMapping
-    fun getAllProducts(): ResponseEntity<List<ProductResponse>> {
-        val products = productService.getAllProducts()
-            .map { ProductResponse(it.id!!, it.name, it.price, it.stock) }
-        return ResponseEntity.ok(products)
+    fun getAllPosts(): ResponseEntity<List<PostSummaryResponse>> {
+        val posts = postService.getAllPosts()
+            .map { it.toSummaryResponse() }
+        return ResponseEntity.ok(posts)
     }
 
     @PostMapping
-    fun createProduct(
-        @Valid @RequestBody dto: CreateProductDto
-    ): ResponseEntity<ProductResponse> {
-        val product = productService.createProduct(dto)
-        val response = ProductResponse(product.id!!, product.name, product.price, product.stock)
-        return ResponseEntity.status(HttpStatus.CREATED).body(response)
+    fun createPost(
+        @Valid @RequestBody dto: CreatePostDto,
+        @RequestHeader("X-User-Id", required = false) userId: Long?
+    ): ResponseEntity<PostResponse> {
+        val authorId = userId ?: 1L
+        val post = postService.createPost(authorId, dto.title, dto.content)
+        return ResponseEntity.status(HttpStatus.CREATED).body(post.toResponse())
     }
 
     @GetMapping("/{id}")
-    fun getProduct(@PathVariable id: Long): ResponseEntity<ProductResponse> {
-        val product = productService.getProductById(id)
-            ?: return ResponseEntity.notFound().build()
-
-        val response = ProductResponse(product.id!!, product.name, product.price, product.stock)
-        return ResponseEntity.ok(response)
+    fun getPost(@PathVariable id: Long): ResponseEntity<PostResponse> {
+        val post = postService.getPostById(id)
+        postService.incrementViewCount(id)
+        return ResponseEntity.ok(post.toResponse())
     }
 }
 ```
@@ -512,17 +532,17 @@ sequenceDiagram
     participant DB as Database
     participant View as View (Thymeleaf)
 
-    User->>Browser: 1. URL 입력 (GET /products)
+    User->>Browser: 1. URL 입력 (GET /posts)
     Browser->>DS: 2. HTTP 요청
     DS->>Ctrl: 3. 요청 매핑
-    Ctrl->>Svc: 4. getAllProducts()
+    Ctrl->>Svc: 4. getAllPosts()
     Svc->>Repo: 5. findAll()
     Repo->>DB: 6. SQL 쿼리
     DB-->>Repo: 7. 결과 반환
-    Repo-->>Svc: 8. List<Product>
-    Svc-->>Ctrl: 9. List<Product>
+    Repo-->>Svc: 8. List<Post>
+    Svc-->>Ctrl: 9. List<Post>
     Ctrl->>Ctrl: 10. Model에 데이터 추가
-    Ctrl-->>DS: 11. View 이름 반환 ("products/list")
+    Ctrl-->>DS: 11. View 이름 반환 ("posts/list")
     DS->>View: 12. 템플릿 렌더링
     View-->>DS: 13. HTML 생성
     DS-->>Browser: 14. HTML 응답
