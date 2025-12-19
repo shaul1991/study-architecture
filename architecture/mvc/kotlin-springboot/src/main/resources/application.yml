@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: kotlin-springboot-mvc
+
+  # H2 Database 설정
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA 설정
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # 애플리케이션 시작 시 테이블 생성, 종료 시 삭제
+    show-sql: true           # SQL 쿼리 로그 출력
+    properties:
+      hibernate:
+        format_sql: true     # SQL 쿼리 포맷팅
+        dialect: org.hibernate.dialect.H2Dialect
+
+  # H2 Console 설정 (개발 환경에서만 사용)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # Thymeleaf 설정
+  thymeleaf:
+    cache: false             # 개발 환경에서 캐시 비활성화
+    prefix: classpath:/templates/
+    suffix: .html
+
+# 서버 설정
+server:
+  port: 8080
+
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    com.example.mvc: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
