@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${isEdit ? '상품 수정' : '상품 등록'} + ' - Spring Boot MVC'">상품 등록 - Spring Boot MVC</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-dark bg-primary mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="/products">Spring Boot MVC - 상품 관리</a>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="mb-3">
+        <a th:href="@{/products}" class="btn btn-secondary">← 목록으로</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0" th:text="${isEdit ? '상품 수정' : '새 상품 등록'}">새 상품 등록</h2>
+        </div>
+        <div class="card-body">
+            <form th:action="${isEdit ? '/products/' + productId : '/products'}"
+                  method="post"
+                  th:object="${product}">
+
+                <!-- 상품명 -->
+                <div class="mb-3">
+                    <label for="name" class="form-label">상품명 <span class="text-danger">*</span></label>
+                    <input type="text"
+                           class="form-control"
+                           th:classappend="${#fields.hasErrors('name')} ? 'is-invalid' : ''"
+                           id="name"
+                           th:field="*{name}"
+                           placeholder="상품명을 입력하세요">
+                    <div class="invalid-feedback" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">
+                        상품명 오류 메시지
+                    </div>
+                </div>
+
+                <!-- 가격 -->
+                <div class="mb-3">
+                    <label for="price" class="form-label">가격 (원) <span class="text-danger">*</span></label>
+                    <input type="number"
+                           class="form-control"
+                           th:classappend="${#fields.hasErrors('price')} ? 'is-invalid' : ''"
+                           id="price"
+                           th:field="*{price}"
+                           step="0.01"
+                           min="0"
+                           placeholder="가격을 입력하세요">
+                    <div class="invalid-feedback" th:if="${#fields.hasErrors('price')}" th:errors="*{price}">
+                        가격 오류 메시지
+                    </div>
+                </div>
+
+                <!-- 재고 -->
+                <div class="mb-3">
+                    <label for="stock" class="form-label">재고 (개) <span class="text-danger">*</span></label>
+                    <input type="number"
+                           class="form-control"
+                           th:classappend="${#fields.hasErrors('stock')} ? 'is-invalid' : ''"
+                           id="stock"
+                           th:field="*{stock}"
+                           min="0"
+                           placeholder="재고를 입력하세요">
+                    <div class="invalid-feedback" th:if="${#fields.hasErrors('stock')}" th:errors="*{stock}">
+                        재고 오류 메시지
+                    </div>
+                </div>
+
+                <!-- 상품 설명 -->
+                <div class="mb-3">
+                    <label for="description" class="form-label">상품 설명</label>
+                    <textarea class="form-control"
+                              th:classappend="${#fields.hasErrors('description')} ? 'is-invalid' : ''"
+                              id="description"
+                              th:field="*{description}"
+                              rows="4"
+                              placeholder="상품 설명을 입력하세요 (선택사항)"></textarea>
+                    <div class="invalid-feedback" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">
+                        설명 오류 메시지
+                    </div>
+                    <div class="form-text">최대 500자까지 입력 가능합니다.</div>
+                </div>
+
+                <!-- 버튼 -->
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <span th:text="${isEdit ? '수정' : '등록'}">등록</span>
+                    </button>
+                    <a th:href="@{/products}" class="btn btn-secondary">취소</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 도움말 -->
+    <div class="mt-4">
+        <div class="alert alert-info">
+            <h5>📝 입력 가이드</h5>
+            <ul class="mb-0">
+                <li><strong>상품명:</strong> 2~100자 이내로 입력해주세요.</li>
+                <li><strong>가격:</strong> 0보다 큰 금액을 입력해주세요.</li>
+                <li><strong>재고:</strong> 0 이상의 숫자를 입력해주세요.</li>
+                <li><strong>설명:</strong> 선택사항이며, 최대 500자까지 가능합니다.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
